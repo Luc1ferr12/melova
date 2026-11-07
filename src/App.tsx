@@ -10,6 +10,7 @@ import { Collection } from './views/Collection'
 import { Home } from './views/Home'
 import { Library } from './views/Library'
 import { Search } from './views/Search'
+import { Explore, OnlineArtist } from './views/Explore'
 
 export default function App() {
   const route = useRoute()
@@ -70,6 +71,8 @@ export default function App() {
   else if (route.name === 'home') view = <Home />
   else if (route.name === 'search') view = <Search />
   else if (route.name === 'library') view = <Library />
+  else if (route.name === 'explore') view = <Explore />
+  else if (route.name === 'onlineArtist') view = <OnlineArtist route={route} key={route.key} />
   else if (route.name === 'queue') view = <div className="page"><h1 className="page-title">Queue</h1><QueueList /></div>
   else view = <Collection route={route} key={JSON.stringify(route)} />
 

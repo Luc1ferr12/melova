@@ -27,7 +27,8 @@ export function Library() {
     sessionStorage.setItem('melova.libf', next)
   }
 
-  const liked = tracks.filter((t) => t.liked).length
+  const liked = tracks.filter((t) => t.liked).length + lib.get().remote.filter((t) => t.liked).length
+  lib.use((s) => s.remote)
   const items: Item[] = []
   if (f === 'all' || f === 'playlists') {
     items.push({ key: 'liked', href: '#/liked', title: 'Liked Songs', sub: `Playlist · ${liked} songs`, liked: true })

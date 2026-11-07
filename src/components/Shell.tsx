@@ -1,4 +1,4 @@
-import { FolderOpen, Home, Library, Plus, Search, Upload } from 'lucide-react'
+import { Compass, FolderOpen, Home, Library, Plus, Search, Upload } from 'lucide-react'
 import { useRef } from 'react'
 import { createPlaylist, importFiles, lib, playlistCover } from '../lib/library'
 import { go, toast, type Route } from '../lib/ui'
@@ -89,7 +89,7 @@ export function Logo() {
 /* ---------------- desktop sidebar ---------------- */
 export function Sidebar({ route }: { route: Route }) {
   const playlists = lib.use((s) => s.playlists)
-  const likedCount = lib.use((s) => s.tracks.filter((t) => t.liked).length)
+  const likedCount = lib.use((s) => s.tracks.filter((t) => t.liked).length + s.remote.filter((t) => t.liked).length)
   const count = lib.use((s) => s.tracks.length)
   return (
     <nav className="sidebar" aria-label="Main">
@@ -97,6 +97,7 @@ export function Sidebar({ route }: { route: Route }) {
         <Logo />
         <a className={'nav-link' + (route.name === 'home' ? ' on' : '')} href="#/"><Home size={24} /> Home</a>
         <a className={'nav-link' + (route.name === 'search' ? ' on' : '')} href="#/search"><Search size={24} /> Search</a>
+        <a className={'nav-link' + (route.name === 'explore' || route.name === 'onlineArtist' ? ' on' : '')} href="#/explore"><Compass size={24} /> Explore</a>
       </div>
       <div className="panel lib-panel">
         <div className="lib-head">
@@ -138,10 +139,11 @@ export function TabBar({ route }: { route: Route }) {
     <nav className="tabbar" aria-label="Main">
       {tab('home', '#/', Home, 'Home')}
       {tab('search', '#/search', Search, 'Search')}
+      {tab('explore', '#/explore', Compass, 'Explore')}
       {tab('library', '#/library', Library, 'Your Library')}
       <button className="tab" onClick={(e) => importMenu(e)}>
         <Plus size={24} />
-        <span>Add music</span>
+        <span>Add</span>
       </button>
     </nav>
   )

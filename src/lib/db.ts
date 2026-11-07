@@ -13,6 +13,10 @@ export interface Track {
   liked: boolean
   playCount: number
   lastPlayed: number
+  /** 'audius' = streamed from the online catalogue; missing = a file on this device */
+  source?: 'local' | 'audius'
+  handle?: string
+  genre?: string
 }
 
 export interface Playlist {
@@ -24,8 +28,8 @@ export interface Playlist {
 }
 
 const DB_NAME = 'melova'
-const VERSION = 1
-type StoreName = 'tracks' | 'audio' | 'covers' | 'playlists'
+const VERSION = 2
+type StoreName = 'tracks' | 'audio' | 'covers' | 'playlists' | 'remote' | 'lyrics'
 
 let dbp: Promise<IDBDatabase> | null = null
 
@@ -39,6 +43,8 @@ function open(): Promise<IDBDatabase> {
       if (!db.objectStoreNames.contains('audio')) db.createObjectStore('audio')
       if (!db.objectStoreNames.contains('covers')) db.createObjectStore('covers')
       if (!db.objectStoreNames.contains('playlists')) db.createObjectStore('playlists', { keyPath: 'id' })
+      if (!db.objectStoreNames.contains('remote')) db.createObjectStore('remote', { keyPath: 'id' })
+      if (!db.objectStoreNames.contains('lyrics')) db.createObjectStore('lyrics')
     }
     req.onsuccess = () => resolve(req.result)
     req.onerror = () => reject(req.error)
@@ -59,10 +65,10 @@ async function store(name: StoreName, mode: IDBTransactionMode = 'readonly') {
 }
 
 export const db = {
-  async all<T>(name: 'tracks' | 'playlists'): Promise<T[]> {
+  async all<T>(name: 'tracks' | 'playlists' | 'remote'): Promise<T[]> {
     return wrap((await store(name)).getAll()) as Promise<T[]>
   },
-  async put(name: 'tracks' | 'playlists', value: Track | Playlist) {
+  async put(name: 'tracks' | 'playlists' | 'remote', value: Track | Playlist) {
     await wrap((await store(name, 'readwrite')).put(value))
   },
   async putBlob(name: 'audio' | 'covers', key: string, blob: Blob) {
@@ -70,6 +76,12 @@ export const db = {
   },
   async getBlob(name: 'audio' | 'covers', key: string): Promise<Blob | undefined> {
     return wrap((await store(name)).get(key)) as Promise<Blob | undefined>
+  },
+  async getVal<T>(name: 'lyrics', key: string): Promise<T | undefined> {
+    return wrap((await store(name)).get(key)) as Promise<T | undefined>
+  },
+  async putVal(name: 'lyrics', key: string, value: unknown) {
+    await wrap((await store(name, 'readwrite')).put(value, key))
   },
   async del(name: StoreName, key: string) {
     await wrap((await store(name, 'readwrite')).delete(key))

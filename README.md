@@ -8,6 +8,10 @@ pemutar musik streaming di-rebuild dari nol, dengan nama, logo, warna, dan teks 
 
 ## Fitur
 
+- **Musik online (Explore):** trending per genre, cari lagu, halaman artis. Lagu full dari artis independen
+  di [Audius](https://audius.org), di-stream gratis tanpa akun. Lagu online bisa di-like, masuk playlist & queue
+- **Lirik:** lirik sinkron yang jalan ngikutin lagu (klik baris buat lompat), dari [LRCLIB](https://lrclib.net).
+  Jalan buat lagu lokal maupun online, disimpen biar bisa dibuka offline
 - Import lagu (pilih file, pilih satu folder, atau drag & drop ke jendela)
 - Baca tag otomatis: judul, artis, album, nomor track, cover art (ID3, FLAC, M4A)
 - Home: sapaan, akses cepat, "Jump back in", baru ditambah, artis, playlist
@@ -43,6 +47,13 @@ atau GitHub Pages. Abis itu:
 
 Hosting cuma nyimpen kode app-nya. Lagu lo nggak pernah di-upload ke mana-mana.
 
+## Soal katalog online
+
+Lagu label besar (yang ada di layanan streaming besar) nggak bisa diputer legal dan gratis dari app lain, jadi
+katalog online Melova pakai Audius: platform terbuka tempat artis independen upload lagu full. Lagu label
+besar tetep bisa lo puter kalau lo punya file-nya sendiri (import), dan liriknya tetep muncul. Lagu online
+butuh internet; yang offline cuma lagu yang lo import.
+
 ## Penting: library per perangkat
 
 Lagu disimpen di storage browser (IndexedDB) di masing-masing perangkat. Jadi lagu yang di-import di
@@ -55,6 +66,8 @@ library di perangkat itu ikut kehapus (file asli lo tetap aman).
 src/lib/db.ts        IndexedDB (tracks, audio, covers, playlists)
 src/lib/tags.ts      pembaca tag ID3 / FLAC / MP4
 src/lib/library.ts   import, like, playlist, grouping album/artis
+src/lib/online.ts    klien Audius (trending, search, artis, stream)
+src/lib/lyrics.ts    lirik LRCLIB + parser LRC
 src/lib/player.ts    mesin audio, queue, shuffle, repeat, sleep timer, Media Session
 src/components/      shell, player bar, now playing, track list, menu, dialog
 src/views/           Home, Search, Library, Collection (album/artis/playlist)

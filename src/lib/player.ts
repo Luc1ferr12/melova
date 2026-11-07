@@ -1,5 +1,6 @@
 import { db } from './db'
-import { coverUrl, lib, recordPlay, trackById } from './library'
+import { coverUrl, keepRemote, lib, recordPlay, trackById } from './library'
+import { streamUrl } from './online'
 import { createStore } from './store'
 
 export type Repeat = 'off' | 'all' | 'one'
@@ -68,6 +69,16 @@ function persist() {
 
 async function load(id: string) {
   if (loadedId === id) return true
+  const t = trackById(id)
+  if (t?.source === 'audius') {
+    if (!navigator.onLine) return false
+    if (currentUrl) URL.revokeObjectURL(currentUrl)
+    currentUrl = null
+    loadedId = id
+    audio.src = streamUrl(t)
+    updateMediaSession(id)
+    return true
+  }
   const blob = await db.getBlob('audio', id)
   if (!blob) return false
   if (currentUrl) URL.revokeObjectURL(currentUrl)
@@ -108,6 +119,7 @@ export function playList(ids: string[], start = 0, context = '', forceShuffle?: 
   const shuffle = forceShuffle ?? player.get().shuffle
   const first = ids[start] ?? ids[0]
   const queue = shuffle ? shuffled(ids, forceShuffle && start === 0 ? undefined : first) : ids
+  keepRemote(ids)
   player.set({ base: ids, queue, index: shuffle ? 0 : start, context, shuffle })
   loadedId = null
   playCurrent()
@@ -206,6 +218,7 @@ export function cycleRepeat() {
 }
 
 export function playNext(ids: string[]) {
+  keepRemote(ids)
   const s = player.get()
   if (!s.queue.length) return playList(ids, 0, 'Queue')
   const q = s.queue.filter((x, i) => i <= s.index || !ids.includes(x))
@@ -215,6 +228,7 @@ export function playNext(ids: string[]) {
 }
 
 export function addToQueue(ids: string[]) {
+  keepRemote(ids)
   const s = player.get()
   if (!s.queue.length) return playList(ids, 0, 'Queue')
   player.set({ queue: [...s.queue, ...ids], base: [...s.base, ...ids] })
@@ -324,7 +338,7 @@ if ('mediaSession' in navigator) {
 
 /** After the library loads, drop queue entries for tracks that no longer exist. */
 export function reconcile() {
-  const ids = new Set(lib.get().tracks.map((t) => t.id))
+  const ids = new Set([...lib.get().tracks, ...lib.get().remote].map((t) => t.id))
   const s = player.get()
   const cur = s.queue[s.index]
   const queue = s.queue.filter((x) => ids.has(x))

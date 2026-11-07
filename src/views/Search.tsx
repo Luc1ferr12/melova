@@ -1,10 +1,11 @@
 import { Search as SearchIcon, X } from 'lucide-react'
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Card } from '../components/Card'
 import { TrackList } from '../components/TrackList'
 import { groupAlbums, groupArtists, lib, playlistCover } from '../lib/library'
 import { href } from '../lib/ui'
-import { EmptyLibrary } from './Home'
+import { GENRES, searchOnline } from '../lib/online'
+import { OnlineState, useOnline } from './Explore'
 
 const TILE_COLORS = ['#7a3cff', '#e0446a', '#1f8a70', '#d9822b', '#2d6cdf', '#a23b72', '#4f7d2a', '#b5492f', '#5e4fa2', '#0f7c8c']
 
@@ -26,8 +27,13 @@ export function Search() {
   const fa = n ? artists.filter((a) => has(a.name)) : []
   const fal = n ? albums.filter((a) => has(a.name) || has(a.sub)) : []
   const fp = n ? playlists.filter((p) => has(p.name)) : []
-
-  if (!tracks.length) return <EmptyLibrary />
+  const [debounced, setDebounced] = useState(q.trim())
+  useEffect(() => {
+    const t = setTimeout(() => setDebounced(q.trim()), 400)
+    return () => clearTimeout(t)
+  }, [q])
+  const online = useOnline(debounced.length >= 2 ? 'q:' + debounced : null, () => searchOnline(debounced, 20))
+  const localNone = !songs.length && !fa.length && !fal.length && !fp.length
 
   return (
     <div className="page">
@@ -46,6 +52,18 @@ export function Search() {
 
       {!n && (
         <>
+          <h2 className="section-title">Browse online</h2>
+          <div className="browse-grid">
+            {GENRES.slice(0, 10).map((g, i) => (
+              <a key={g} className="browse-tile" href="#/explore" onClick={() => sessionStorage.setItem('melova.genre', g)} style={{ background: TILE_COLORS[(i + 3) % TILE_COLORS.length] }}>
+                <span>{g}</span>
+              </a>
+            ))}
+          </div>
+        </>
+      )}
+      {!n && artists.length > 0 && (
+        <>
           <h2 className="section-title">Browse your artists</h2>
           <div className="browse-grid">
             {artists.map((a, i) => (
@@ -57,7 +75,7 @@ export function Search() {
         </>
       )}
 
-      {n && !songs.length && !fa.length && !fal.length && !fp.length && (
+      {n && localNone && !online.loading && !online.tracks.length && debounced === q.trim() && (
         <div className="empty small-empty">
           <h2>No results for “{q}”</h2>
           <p className="muted">Check the spelling, or try fewer words.</p>
@@ -66,7 +84,7 @@ export function Search() {
 
       {songs.length > 0 && (
         <section>
-          <h2 className="section-title">Songs</h2>
+          <h2 className="section-title">Your songs</h2>
           <TrackList tracks={songs.slice(0, 50)} context={'Search · ' + q} />
         </section>
       )}
@@ -92,6 +110,13 @@ export function Search() {
           <div className="grid">
             {fp.map((p) => <Card key={p.id} href={href({ name: 'playlist', id: p.id })} title={p.name} sub={`${p.trackIds.length} songs`} coverId={playlistCover(p)} ids={p.trackIds} context={'Playlist · ' + p.name} />)}
           </div>
+        </section>
+      )}
+      {debounced.length >= 2 && (online.tracks.length > 0 || online.loading || online.error) && (
+        <section>
+          <h2 className="section-title">Online</h2>
+          <OnlineState loading={online.loading} error={online.error} empty={!online.tracks.length} retry={online.retry} />
+          <TrackList tracks={online.tracks} context={'Online · ' + debounced} />
         </section>
       )}
     </div>

@@ -12,6 +12,8 @@ export type Route =
   | { name: 'album'; key: string }
   | { name: 'artist'; key: string }
   | { name: 'playlist'; id: string }
+  | { name: 'explore' }
+  | { name: 'onlineArtist'; key: string }
 
 function parse(hash: string): Route {
   const [, a, b] = hash.replace(/^#/, '').split('/')
@@ -25,6 +27,8 @@ function parse(hash: string): Route {
     case 'album': return { name: 'album', key: v }
     case 'artist': return { name: 'artist', key: v }
     case 'playlist': return { name: 'playlist', id: v }
+    case 'explore': return { name: 'explore' }
+    case 'online-artist': return { name: 'onlineArtist', key: v }
     default: return { name: 'home' }
   }
 }
@@ -34,6 +38,7 @@ export function href(r: Route): string {
     case 'album': return '#/album/' + encodeURIComponent(r.key)
     case 'artist': return '#/artist/' + encodeURIComponent(r.key)
     case 'playlist': return '#/playlist/' + encodeURIComponent(r.id)
+    case 'onlineArtist': return '#/online-artist/' + encodeURIComponent(r.key)
     case 'home': return '#/'
     default: return '#/' + r.name
   }
@@ -60,9 +65,9 @@ export function useRoute() {
 interface UiState {
   toast: { id: number; text: string } | null
   nowPlaying: boolean
-  queueOpen: boolean
+  panel: 'queue' | 'lyrics' | null // desktop side panel
 }
-export const ui = createStore<UiState>({ toast: null, nowPlaying: false, queueOpen: false })
+export const ui = createStore<UiState>({ toast: null, nowPlaying: false, panel: null })
 
 let toastTimer: number | undefined
 export function toast(text: string) {
@@ -91,6 +96,7 @@ export function useDominant(url: string | null, fallback = '#3a2a52') {
     if (!url) return setC(fallback)
     if (colorCache.has(url)) return setC(colorCache.get(url)!)
     const img = new Image()
+    img.crossOrigin = 'anonymous' // online artwork: needed to read pixels
     img.onload = () => {
       try {
         const cv = document.createElement('canvas')

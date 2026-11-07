@@ -21,7 +21,10 @@ Keyboard shortcuts,player,should,yes,partial,space / shift+arrows / alt+arrows
 Drag and drop import,library,should,no,yes,added
 Reorder songs in a playlist,playlists,should,yes,partial,data function exists; no drag UI yet
 Sync library across devices,platform,should,yes,no,each device has its own library for now
-Lyrics,player,could,yes,no,
+Lyrics,player,should,yes,yes,time-synced from LRCLIB; tap a line to seek
 Crossfade and equalizer,player,could,yes,no,
-Music catalogue and recommendations,content,could,yes,skip,the catalogue and licences belong to the original service
+Stream an online catalogue,content,must,yes,partial,Audius independent catalogue; major-label songs are not licensed for free use
+Trending by genre,content,should,yes,yes,
+Online artist pages,content,should,yes,yes,
+Personalised recommendations,content,could,yes,no,
 Social features and sharing,social,could,yes,skip,

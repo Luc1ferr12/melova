@@ -1,4 +1,4 @@
-import { Clock3, Disc3, Heart, ListEnd, ListPlus, ListStart, MoreHorizontal, Pause, Play, Trash2, User, X } from 'lucide-react'
+import { Clock3, Disc3, Globe, Heart, ListEnd, ListPlus, ListStart, MoreHorizontal, Pause, Play, Trash2, User, X } from 'lucide-react'
 import { memo, type MouseEvent } from 'react'
 import {
   addToPlaylist,
@@ -9,10 +9,16 @@ import {
   toggleLike,
   type Track,
 } from '../lib/library'
-import { addToQueue, currentId, fmt, forget, playList, player, playNext, toggle } from '../lib/player'
-import { go, toast } from '../lib/ui'
+import { addToQueue, fmt, forget, playList, player, playNext, toggle } from '../lib/player'
+import { go, href, toast } from '../lib/ui'
 import { Cover } from './Cover'
 import { askConfirm, askText, openMenu } from './overlays'
+
+const remote = (t: Track) => t.source === 'audius'
+
+export const artistHref = (t: Track) =>
+  remote(t) ? href({ name: 'onlineArtist', key: t.handle || t.artist }) : href({ name: 'artist', key: t.artist })
+export const albumHref = (t: Track) => (remote(t) ? artistHref(t) : href({ name: 'album', key: t.artist + '|' + t.album }))
 
 export function addToPlaylistMenu(e: { clientX: number; clientY: number } | null, ids: string[]) {
   const pls = lib.get().playlists
@@ -50,12 +56,12 @@ export function trackMenu(e: { clientX: number; clientY: number } | null, t: Tra
       { label: 'Add to playlist', icon: <ListPlus size={18} />, onClick: () => addToPlaylistMenu(e, [t.id]) },
       { label: 'Play next', icon: <ListStart size={18} />, onClick: () => { playNext([t.id]); toast('Playing next') } },
       { label: 'Add to queue', icon: <ListEnd size={18} />, onClick: () => { addToQueue([t.id]); toast('Added to queue') } },
-      { label: 'Go to album', icon: <Disc3 size={18} />, onClick: () => go({ name: 'album', key: t.artist + '|' + t.album }) },
-      { label: 'Go to artist', icon: <User size={18} />, onClick: () => go({ name: 'artist', key: t.artist }) },
+      ...(remote(t) ? [] : [{ label: 'Go to album', icon: <Disc3 size={18} />, onClick: () => go({ name: 'album', key: t.artist + '|' + t.album }) }]),
+      { label: 'Go to artist', icon: <User size={18} />, onClick: () => { location.hash = artistHref(t) } },
       ...(playlistId
         ? [{ label: 'Remove from this playlist', icon: <X size={18} />, onClick: () => removeFromPlaylist(playlistId, t.id) }]
         : []),
-      {
+      ...(remote(t) ? [] : [{
         label: 'Delete from device',
         icon: <Trash2 size={18} />,
         danger: true,
@@ -66,7 +72,7 @@ export function trackMenu(e: { clientX: number; clientY: number } | null, t: Tra
             toast('Song deleted')
           }
         },
-      },
+      }]),
     ],
     t.title,
     t.artist,
@@ -159,12 +165,18 @@ const Row = memo(function Row({ t, n, active, playing, showAlbum, showCover, pla
         {showCover && <Cover coverId={t.coverId} size={40} />}
         <span className="tl-text">
           <span className="t">{t.title}</span>
-          <a className="a" href={'#/artist/' + encodeURIComponent(t.artist)} onClick={(e) => e.stopPropagation()}>{t.artist}</a>
+          <span className="a">
+            {remote(t) && <Globe size={12} className="online-dot" aria-label="Online" />}
+            <a href={artistHref(t)} onClick={(e) => e.stopPropagation()}>{t.artist}</a>
+          </span>
         </span>
       </span>
-      {showAlbum && (
-        <a className="tl-album" href={'#/album/' + encodeURIComponent(t.artist + '|' + t.album)} onClick={(e) => e.stopPropagation()}>{t.album}</a>
-      )}
+      {showAlbum &&
+        (remote(t) ? (
+          <span className="tl-album">{t.genre || 'Online'}</span>
+        ) : (
+          <a className="tl-album" href={albumHref(t)} onClick={(e) => e.stopPropagation()}>{t.album}</a>
+        ))}
       <span className="tl-dur">
         <button className={'icon-btn like' + (t.liked ? ' on' : '')} onClick={(e) => { e.stopPropagation(); toggleLike(t.id) }} aria-label={t.liked ? 'Unlike' : 'Like'} aria-pressed={t.liked}>
           <Heart size={16} fill={t.liked ? 'currentColor' : 'none'} />
@@ -180,4 +192,3 @@ const Row = memo(function Row({ t, n, active, playing, showAlbum, showCover, pla
   )
 })
 
-export const isCurrent = (id: string) => currentId() === id

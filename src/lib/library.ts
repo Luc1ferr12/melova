@@ -6,22 +6,66 @@ import { guessFromFileName, readTags } from './tags'
 export type { Track, Playlist }
 
 interface LibState {
-  tracks: Track[]
+  tracks: Track[] // files on this device
+  remote: Track[] // online tracks you played, liked or saved to a playlist
   playlists: Playlist[]
   loaded: boolean
   importing: { done: number; total: number } | null
 }
 
-export const lib = createStore<LibState>({ tracks: [], playlists: [], loaded: false, importing: null })
+export const lib = createStore<LibState>({ tracks: [], remote: [], playlists: [], loaded: false, importing: null })
 
 export const AUDIO_EXT = /\.(mp3|m4a|aac|mp4|flac|ogg|oga|opus|wav|webm|weba)$/i
 
 export async function loadLibrary() {
-  const [tracks, playlists] = await Promise.all([db.all<Track>('tracks'), db.all<Playlist>('playlists')])
-  lib.set({ tracks, playlists, loaded: true })
+  const [tracks, playlists, remoteAll] = await Promise.all([
+    db.all<Track>('tracks'),
+    db.all<Playlist>('playlists'),
+    db.all<Track>('remote').catch(() => [] as Track[]),
+  ])
+  // forget online tracks nothing points at any more
+  const inPlaylist = new Set(playlists.flatMap((p) => p.trackIds))
+  let queued = new Set<string>()
+  try {
+    queued = new Set(JSON.parse(localStorage.getItem('melova.player') || '{}').queue || [])
+  } catch {
+    /* ignore */
+  }
+  const keepAfter = Date.now() - 30 * 86_400_000
+  const remote: Track[] = []
+  for (const t of remoteAll) {
+    if (t.liked || inPlaylist.has(t.id) || queued.has(t.id) || t.lastPlayed > keepAfter) remote.push(t)
+    else db.del('remote', t.id)
+  }
+  lib.set({ tracks, remote, playlists, loaded: true })
 }
 
-export const trackById = (id: string) => lib.get().tracks.find((t) => t.id === id)
+/* ---------------- online tracks ---------------- */
+const seen = new Map<string, Track>() // browsed this session, not saved yet
+const isRemoteId = (id: string) => id.startsWith('au:')
+
+/** Register tracks shown from the online catalogue; returns the saved copy when there is one. */
+export function seeRemote(ts: Track[]): Track[] {
+  const saved = new Map(lib.get().remote.map((t) => [t.id, t]))
+  return ts.map((t) => {
+    if (!saved.has(t.id)) seen.set(t.id, t)
+    return saved.get(t.id) ?? t
+  })
+}
+
+/** Save online tracks so they survive a reload (when played, liked or added to a playlist). */
+export async function keepRemote(ids: string[]) {
+  const have = new Set(lib.get().remote.map((t) => t.id))
+  const add = ids.filter((id) => isRemoteId(id) && !have.has(id) && seen.has(id)).map((id) => seen.get(id)!)
+  if (!add.length) return
+  lib.set((s) => ({ remote: [...s.remote, ...add] }))
+  for (const t of add) await db.put('remote', t)
+}
+
+export const trackById = (id: string) =>
+  lib.get().tracks.find((t) => t.id === id) ?? lib.get().remote.find((t) => t.id === id) ?? seen.get(id)
+
+export const allTracks = (s: LibState) => (s.remote.length ? [...s.tracks, ...s.remote] : s.tracks)
 
 function probeDuration(blob: Blob): Promise<number> {
   return new Promise((resolve) => {
@@ -110,11 +154,17 @@ function stripEmpty<T extends object>(o: T): Partial<T> {
 }
 
 export async function updateTrack(id: string, patch: Partial<Track>) {
+  if (isRemoteId(id)) await keepRemote([id])
   const t = trackById(id)
   if (!t) return
   const next = { ...t, ...patch }
-  lib.set((s) => ({ tracks: s.tracks.map((x) => (x.id === id ? next : x)) }))
-  await db.put('tracks', next)
+  if (isRemoteId(id)) {
+    lib.set((s) => ({ remote: s.remote.map((x) => (x.id === id ? next : x)) }))
+    await db.put('remote', next)
+  } else {
+    lib.set((s) => ({ tracks: s.tracks.map((x) => (x.id === id ? next : x)) }))
+    await db.put('tracks', next)
+  }
 }
 
 export const toggleLike = (id: string) => updateTrack(id, { liked: !trackById(id)?.liked })
@@ -125,7 +175,7 @@ export async function recordPlay(id: string) {
 }
 
 export async function deleteTrack(id: string) {
-  const t = trackById(id)
+  const t = lib.get().tracks.find((x) => x.id === id)
   if (!t) return
   lib.set((s) => ({
     tracks: s.tracks.filter((x) => x.id !== id),
@@ -139,6 +189,7 @@ export async function deleteTrack(id: string) {
 
 /* ---------------- playlists ---------------- */
 export async function createPlaylist(name: string, trackIds: string[] = []) {
+  await keepRemote(trackIds)
   const p: Playlist = { id: uid(), name: name.trim() || 'My playlist', trackIds, createdAt: Date.now(), updatedAt: Date.now() }
   lib.set((s) => ({ playlists: [...s.playlists, p] }))
   await db.put('playlists', p)
@@ -154,8 +205,10 @@ async function savePlaylist(id: string, fn: (p: Playlist) => Playlist) {
 }
 
 export const renamePlaylist = (id: string, name: string) => savePlaylist(id, (p) => ({ ...p, name: name.trim() || p.name }))
-export const addToPlaylist = (id: string, trackIds: string[]) =>
-  savePlaylist(id, (p) => ({ ...p, trackIds: [...p.trackIds, ...trackIds.filter((t) => !p.trackIds.includes(t))] }))
+export const addToPlaylist = async (id: string, trackIds: string[]) => {
+  await keepRemote(trackIds)
+  return savePlaylist(id, (p) => ({ ...p, trackIds: [...p.trackIds, ...trackIds.filter((t) => !p.trackIds.includes(t))] }))
+}
 export const removeFromPlaylist = (id: string, trackId: string) =>
   savePlaylist(id, (p) => ({ ...p, trackIds: p.trackIds.filter((t) => t !== trackId) }))
 export const movePlaylistTrack = (id: string, from: number, to: number) =>
@@ -176,6 +229,7 @@ const coverCache = new Map<string, Promise<string | null>>()
 
 export function coverUrl(coverId: string | null): Promise<string | null> {
   if (!coverId) return Promise.resolve(null)
+  if (coverId.startsWith('http')) return Promise.resolve(coverId)
   let p = coverCache.get(coverId)
   if (!p) {
     p = db.getBlob('covers', coverId).then((b) => (b ? URL.createObjectURL(b) : null))

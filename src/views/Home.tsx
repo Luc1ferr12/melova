@@ -1,4 +1,4 @@
-import { FolderOpen, Music4, Upload } from 'lucide-react'
+import { Compass, FolderOpen, Music4, Upload } from 'lucide-react'
 import { Card, Shelf } from '../components/Card'
 import { Cover } from '../components/Cover'
 import { pickFiles, pickFolder } from '../components/Shell'
@@ -6,6 +6,9 @@ import { groupAlbums, groupArtists, lib, playlistCover } from '../lib/library'
 import { player, playList, toggle } from '../lib/player'
 import { greeting, href } from '../lib/ui'
 import { Pause, Play } from 'lucide-react'
+import { trending } from '../lib/online'
+import { useOnline } from './Explore'
+import type { Track } from '../lib/db'
 
 export function EmptyLibrary() {
   return (
@@ -18,6 +21,7 @@ export function EmptyLibrary() {
       <div className="empty-actions">
         <button className="btn primary lg" onClick={pickFiles}><Upload size={18} /> Add music files</button>
         <button className="btn outline lg hide-touch" onClick={pickFolder}><FolderOpen size={18} /> Add a folder</button>
+        <a className="btn outline lg" href="#/explore"><Compass size={18} /> Explore music online</a>
       </div>
       <p className="muted small">MP3, M4A, FLAC, OGG, Opus and WAV. You can also drop files anywhere on this window.</p>
     </div>
@@ -50,14 +54,52 @@ function Quick({ hrefTo, title, coverId, liked, ids, context }: { hrefTo: string
   )
 }
 
+function TrackCard({ t, list, i, context }: { t: Track; list: string[]; i: number; context: string }) {
+  const cur = player.use((s) => s.queue[s.index] === t.id)
+  const playing = player.use((s) => s.playing)
+  const on = cur && playing
+  return (
+    <button className="card" onClick={() => (cur ? toggle() : playList(list, i, context))}>
+      <div className="card-art">
+        <Cover coverId={t.coverId} size="100%" alt="" />
+        <span className={'card-play' + (on ? ' show' : '')} aria-hidden>
+          {on ? <Pause size={22} fill="currentColor" /> : <Play size={22} fill="currentColor" className="nudge" />}
+        </span>
+      </div>
+      <div className="card-title">{t.title}</div>
+      <div className="card-sub">{t.artist}</div>
+    </button>
+  )
+}
+
+function TrendingShelf() {
+  const res = useOnline('t::week', () => trending(undefined, 'week'))
+  if (res.error || (!res.loading && !res.tracks.length)) return null
+  const ids = res.tracks.map((t) => t.id)
+  return (
+    <Shelf title="Trending online" href="#/explore">
+      {res.loading && !ids.length
+        ? Array.from({ length: 6 }, (_, i) => <div key={i} className="card"><div className="card-art skel-art" /></div>)
+        : res.tracks.slice(0, 15).map((t, i) => <TrackCard key={t.id} t={t} list={ids} i={i} context="Trending · All genres" />)}
+    </Shelf>
+  )
+}
+
 export function Home() {
   const tracks = lib.use((s) => s.tracks)
   const playlists = lib.use((s) => s.playlists)
-  if (!tracks.length) return <EmptyLibrary />
+  const remoteLiked = lib.use((s) => s.remote.filter((t) => t.liked).length)
+  if (!tracks.length && !playlists.length && !remoteLiked)
+    return (
+      <>
+        <EmptyLibrary />
+        <div className="page" style={{ minHeight: 0 }}><TrendingShelf /></div>
+      </>
+    )
 
   const albums = groupAlbums(tracks)
   const artists = groupArtists(tracks)
-  const liked = tracks.filter((t) => t.liked)
+  const liked = [...tracks, ...lib.get().remote].filter((t) => t.liked)
   const recentPlayed = [...tracks].filter((t) => t.lastPlayed).sort((a, b) => b.lastPlayed - a.lastPlayed)
   const recentAlbums: typeof albums = []
   for (const t of recentPlayed) {
@@ -94,6 +136,8 @@ export function Home() {
           <Card href="#/songs" title="Shuffle everything" sub={`${tracks.length} songs`} coverId={tracks[Math.floor(tracks.length / 2)].coverId} ids={tracks.map((t) => t.id)} context="All songs" />
         </Shelf>
       )}
+
+      <TrendingShelf />
 
       <Shelf title="Recently added" href="#/library">
         {newest.slice(0, 12).map((a) => (

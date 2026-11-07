@@ -2,6 +2,7 @@ import {
   ChevronDown,
   Heart,
   ListMusic,
+  MicVocal,
   MoreHorizontal,
   Moon,
   Pause,
@@ -36,12 +37,13 @@ import {
 import { toast, ui, useDominant } from '../lib/ui'
 import { Cover } from './Cover'
 import { openMenu } from './overlays'
-import { trackMenu } from './TrackList'
+import { albumHref, artistHref, trackMenu } from './TrackList'
+import { LyricsView } from './Lyrics'
 
 function useCurrent() {
   const id = player.use((s) => s.queue[s.index])
   // re-render when the track's like state changes
-  return lib.use((s) => (id ? s.tracks.find((t) => t.id === id) ?? null : null))
+  return lib.use((s) => (id ? s.tracks.find((t) => t.id === id) ?? s.remote.find((t) => t.id === id) ?? trackById(id) ?? null : null))
 }
 
 /* ---------------- slider ---------------- */
@@ -124,7 +126,7 @@ export function PlayerBar() {
   const volume = player.use((s) => s.volume)
   const muted = player.use((s) => s.muted)
   const sleepAt = player.use((s) => s.sleepAt)
-  const queueOpen = ui.use((s) => s.queueOpen)
+  const panel = ui.use((s) => s.panel)
   const VolIcon = muted || volume === 0 ? VolumeX : volume < 0.5 ? Volume1 : Volume2
   return (
     <footer className="player-bar">
@@ -135,8 +137,8 @@ export function PlayerBar() {
               <Cover coverId={t.coverId} size={56} />
             </button>
             <div className="pb-text">
-              <a className="t" href={'#/album/' + encodeURIComponent(t.artist + '|' + t.album)}>{t.title}</a>
-              <a className="a" href={'#/artist/' + encodeURIComponent(t.artist)}>{t.artist}</a>
+              <a className="t" href={albumHref(t)}>{t.title}</a>
+              <a className="a" href={artistHref(t)}>{t.artist}</a>
             </div>
             <button className={'icon-btn like' + (t.liked ? ' on' : '')} onClick={() => toggleLike(t.id)} aria-label={t.liked ? 'Unlike' : 'Like'} aria-pressed={t.liked}>
               <Heart size={18} fill={t.liked ? 'currentColor' : 'none'} />
@@ -152,7 +154,10 @@ export function PlayerBar() {
         <button className={'icon-btn toggle' + (sleepAt ? ' on' : '')} onClick={(e) => sleepMenu(e)} aria-label="Sleep timer" title="Sleep timer">
           <Moon size={18} />
         </button>
-        <button className={'icon-btn toggle' + (queueOpen ? ' on' : '')} onClick={() => ui.set({ queueOpen: !queueOpen })} aria-label="Queue" aria-pressed={queueOpen} title="Queue">
+        <button className={'icon-btn toggle' + (panel === 'lyrics' ? ' on' : '')} onClick={() => ui.set({ panel: panel === 'lyrics' ? null : 'lyrics' })} aria-label="Lyrics" aria-pressed={panel === 'lyrics'} title="Lyrics">
+          <MicVocal size={18} />
+        </button>
+        <button className={'icon-btn toggle' + (panel === 'queue' ? ' on' : '')} onClick={() => ui.set({ panel: panel === 'queue' ? null : 'queue' })} aria-label="Queue" aria-pressed={panel === 'queue'} title="Queue">
           <ListMusic size={18} />
         </button>
         <button className="icon-btn" onClick={toggleMute} aria-label={muted ? 'Unmute' : 'Mute'} title={muted ? 'Unmute' : 'Mute'}>
@@ -199,7 +204,8 @@ export function NowPlaying() {
   const sleepAt = player.use((s) => s.sleepAt)
   const url = useCover(t?.coverId)
   const bg = useDominant(url)
-  const [showQueue, setShowQueue] = useState(false)
+  const [view, setView] = useState<'art' | 'queue' | 'lyrics'>('art')
+  const flip = (v: 'queue' | 'lyrics') => setView(view === v ? 'art' : v)
   useEffect(() => {
     if (!open) return
     const k = (e: KeyboardEvent) => e.key === 'Escape' && ui.set({ nowPlaying: false })
@@ -221,8 +227,10 @@ export function NowPlaying() {
           <MoreHorizontal size={24} />
         </button>
       </header>
-      {showQueue ? (
+      {view === 'queue' ? (
         <div className="np-queue"><QueueList /></div>
+      ) : view === 'lyrics' ? (
+        <div className="np-lyrics"><LyricsView track={t} big /></div>
       ) : (
         <div className="np-art">
           <Cover coverId={t.coverId} size="100%" className="np-cover" alt={t.album} />
@@ -231,7 +239,7 @@ export function NowPlaying() {
       <div className="np-info">
         <div className="np-text">
           <div className="np-title">{t.title}</div>
-          <a className="np-artist" href={'#/artist/' + encodeURIComponent(t.artist)} onClick={() => ui.set({ nowPlaying: false })}>{t.artist}</a>
+          <a className="np-artist" href={artistHref(t)} onClick={() => ui.set({ nowPlaying: false })}>{t.artist}</a>
         </div>
         <button className={'icon-btn like' + (t.liked ? ' on' : '')} onClick={() => toggleLike(t.id)} aria-label={t.liked ? 'Unlike' : 'Like'}>
           <Heart size={26} fill={t.liked ? 'currentColor' : 'none'} />
@@ -241,7 +249,8 @@ export function NowPlaying() {
       <Controls big />
       <div className="np-foot">
         <button className={'icon-btn toggle' + (sleepAt ? ' on' : '')} onClick={(e) => sleepMenu(e)} aria-label="Sleep timer"><Moon size={20} /></button>
-        <button className={'icon-btn toggle' + (showQueue ? ' on' : '')} onClick={() => setShowQueue(!showQueue)} aria-label="Queue" aria-pressed={showQueue}><ListMusic size={20} /></button>
+        <button className={'icon-btn toggle' + (view === 'lyrics' ? ' on' : '')} onClick={() => flip('lyrics')} aria-label="Lyrics" aria-pressed={view === 'lyrics'}><MicVocal size={20} /></button>
+        <button className={'icon-btn toggle' + (view === 'queue' ? ' on' : '')} onClick={() => flip('queue')} aria-label="Queue" aria-pressed={view === 'queue'}><ListMusic size={20} /></button>
       </div>
     </div>
   )
@@ -251,8 +260,8 @@ export function NowPlaying() {
 export function QueueList() {
   const queue = player.use((s) => s.queue)
   const index = player.use((s) => s.index)
-  const tracks = lib.use((s) => s.tracks)
-  void tracks
+  lib.use((s) => s.remote) // re-render when saved online tracks change
+  lib.use((s) => s.tracks)
   const cur = trackById(queue[index])
   const upcoming = queue.slice(index + 1).map((id, k) => ({ t: trackById(id), i: index + 1 + k })).filter((x) => x.t)
   return (
@@ -291,15 +300,17 @@ function QueueRow({ t, active, onClick, onRemove }: { t: NonNullable<ReturnType<
 }
 
 export function QueuePanel() {
-  const open = ui.use((s) => s.queueOpen)
-  if (!open) return null
+  const panel = ui.use((s) => s.panel)
+  const t = useCurrent()
+  if (!panel) return null
+  const title = panel === 'queue' ? 'Queue' : 'Lyrics'
   return (
-    <aside className="side-panel" aria-label="Queue">
+    <aside className={'side-panel' + (panel === 'lyrics' ? ' lyrics-panel' : '')} aria-label={title}>
       <div className="side-panel-head">
-        <h2>Queue</h2>
-        <button className="icon-btn" onClick={() => ui.set({ queueOpen: false })} aria-label="Close queue"><X size={18} /></button>
+        <h2>{title}</h2>
+        <button className="icon-btn" onClick={() => ui.set({ panel: null })} aria-label={'Close ' + title.toLowerCase()}><X size={18} /></button>
       </div>
-      <QueueList />
+      {panel === 'queue' ? <QueueList /> : <LyricsView track={t} />}
     </aside>
   )
 }

@@ -8,6 +8,7 @@ import {
   deletePlaylist,
   groupAlbums,
   groupArtists,
+  allTracks,
   lib,
   playlistCover,
   renamePlaylist,
@@ -36,11 +37,13 @@ interface Model {
 
 function useModel(route: Route): Model | null {
   const tracks = lib.use((s) => s.tracks)
+  const remote = lib.use((s) => s.remote)
   const playlists = lib.use((s) => s.playlists)
   return useMemo(() => {
+    const every = allTracks({ tracks, remote } as Parameters<typeof allTracks>[0])
     switch (route.name) {
       case 'liked': {
-        const ts = tracks.filter((t) => t.liked).sort((a, b) => b.addedAt - a.addedAt)
+        const ts = every.filter((t) => t.liked).sort((a, b) => b.addedAt - a.addedAt)
         return { kind: 'Playlist', title: 'Liked Songs', sub: '', coverId: null, liked: true, tracks: ts, context: 'Liked Songs', showAlbum: true, numbered: 'index' }
       }
       case 'songs':
@@ -58,14 +61,14 @@ function useModel(route: Route): Model | null {
       case 'playlist': {
         const p = playlists.find((x) => x.id === route.id)
         if (!p) return null
-        const map = new Map(tracks.map((t) => [t.id, t]))
+        const map = new Map(every.map((t) => [t.id, t]))
         const ts = p.trackIds.map((id) => map.get(id)).filter(Boolean) as Track[]
         return { kind: 'Playlist', title: p.name, sub: '', coverId: playlistCover(p), tracks: ts, context: 'Playlist · ' + p.name, playlistId: p.id, showAlbum: true, numbered: 'index' }
       }
       default:
         return null
     }
-  }, [route, tracks, playlists])
+  }, [route, tracks, remote, playlists])
 }
 
 export function Collection({ route }: { route: Route }) {
