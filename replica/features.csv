@@ -1,0 +1,27 @@
+feature,area,priority,original,clone,notes
+Play songs from a library,player,must,yes,yes,from the user's own files
+Play / pause / next / previous / seek,player,must,yes,yes,
+Shuffle and repeat (all / one),player,must,yes,yes,
+Queue with play next and add to queue,player,must,yes,yes,
+Full screen now playing,player,must,yes,yes,background colour from cover art
+Mini player on mobile,player,must,yes,yes,
+Lock screen and headphone controls,player,must,yes,yes,Media Session API
+Home with shortcuts and shelves,home,must,yes,yes,
+Search songs artists albums playlists,search,must,yes,yes,local search
+Library with filters,library,must,yes,yes,
+Liked songs,library,must,yes,yes,
+Create rename delete playlists,playlists,must,yes,yes,
+Add and remove songs in a playlist,playlists,must,yes,yes,
+Album and artist pages,browse,must,yes,yes,
+Install as an app on phone and laptop,platform,must,yes,yes,PWA; needs HTTPS hosting for phones
+Offline playback,platform,must,yes,yes,songs kept in IndexedDB
+Resume last song and position,player,should,yes,yes,
+Sleep timer,player,should,yes,yes,
+Keyboard shortcuts,player,should,yes,partial,space / shift+arrows / alt+arrows
+Drag and drop import,library,should,no,yes,added
+Reorder songs in a playlist,playlists,should,yes,partial,data function exists; no drag UI yet
+Sync library across devices,platform,should,yes,no,each device has its own library for now
+Lyrics,player,could,yes,no,
+Crossfade and equalizer,player,could,yes,no,
+Music catalogue and recommendations,content,could,yes,skip,the catalogue and licences belong to the original service
+Social features and sharing,social,could,yes,skip,
